@@ -1,0 +1,27 @@
+<script type="module">
+    // --- ייבוא מודולי ליבה ---
+    import {
+        db, auth, authReadyPromise, SmartLog, showToast,
+        collection, doc, onSnapshot, query, orderBy, addDoc, where, limit, Timestamp
+    } from '../shared/firebase-init.js'; // <-- נתיב יחסי תוקן
+
+    // --- ייבוא מודול מפות ---
+    import {
+        initMap, ISRAEL_CENTER,
+        driverIconActive, driverIconStuck, orderIconNew as orderIconActive // שינוי שם לייבוא
+    } from '../shared/map-utils.js'; // <-- נתיב יחסי תוקן
+
+    // --- (Rest of the original functions and initialization logic are assumed present) ---
+
+    async function initializeViewerApplication() {
+        // ... (Auth logic) ...
+        try {
+            // שימוש ב-initMap המיובא
+            viewerMap = initMap('viewer-map', ISRAEL_CENTER, 9);
+            if (!viewerMap) { throw new Error("Map initialization failed."); }
+            await authReadyPromise; 
+            // ... (Listeners logic) ...
+        } catch (error) { /* ... */ }
+    }
+    // ... (Rest of the original functions are assumed present and adjusted) ...
+</script>

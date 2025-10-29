@@ -1,0 +1,31 @@
+<script type="module">
+    // --- ייבוא מודולי ליבה ---
+    import {
+        db, authReadyPromise, SmartLog, showToast,
+        collection, doc, onSnapshot, query, addDoc, updateDoc,
+        serverTimestamp, where, setDoc, limit, orderBy, Timestamp 
+    } from '../shared/firebase-init.js'; // <-- נתיב יחסי תוקן
+
+    // --- ייבוא מודול מפות ---
+    import {
+        initMap, WAREHOUSE_LOCATIONS,
+        driverIconAvailable, driverIconLoading, driverIconInactive, warehouseIcon
+    } from '../shared/map-utils.js'; // <-- נתיב יחסי תוקן
+
+    // --- (Rest of the original functions and initialization logic are assumed present) ---
+    
+    function initMapCustom() { // פונקציה עוטפת המשתמשת ב-initMap המיובא
+        if (map) map.remove();
+        if (!currentManager || !WAREHOUSE_LOCATIONS[currentManager.warehouse]) { 
+            SmartLog.error(new Error("Warehouse location unknown"), "Map.Init"); 
+            return; 
+        }
+        const center = WAREHOUSE_LOCATIONS[currentManager.warehouse];
+        map = initMap('warehouse-map', center, 13); // שימוש בפונקציה המיובאת
+        if (map) {
+            L.marker(center, { icon: warehouseIcon }).addTo(map).bindPopup(`<b>המחסן (${currentManager.warehouse})</b>`);
+            SmartLog.info("Map initialized", "Map.Init");
+        }
+    }
+    // ... (Rest of the original functions are assumed present and adjusted) ...
+</script>

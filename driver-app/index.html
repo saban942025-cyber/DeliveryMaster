@@ -1,0 +1,36 @@
+<script type="module">
+    // --- ייבוא מודולי ליבה ---
+    import {
+        db, auth, authReadyPromise, SmartLog, showToast,
+        collection, doc, onSnapshot, query, addDoc, updateDoc,
+        serverTimestamp, where, setDoc, limit, orderBy, Timestamp
+    } from '../shared/firebase-init.js'; // <-- נתיב יחסי תוקן
+
+    // --- ייבוא מודול מפות ---
+    import {
+        initMap, geocodeAddress, ISRAEL_CENTER, 
+        orderIconNew as orderIconActive // שינוי שם לייבוא
+    } from '../shared/map-utils.js'; // <-- נתיב יחסי תוקן
+
+    // --- (Rest of the original functions and initialization logic are assumed present) ---
+    
+    async function initializeDriverApp() {
+        // ...
+        try { 
+            // ...
+            await authReadyPromise;
+            // ...
+            // שימוש ב-initMap המיובא
+            map = initMap(DOM.mapElement, ISRAEL_CENTER, 13);
+            if (!map) { throw new Error("Map initialization failed."); }
+            // ...
+        } catch (error) { /* ... */ }
+    }
+    
+    async function updateLocationText(lat, lng) { 
+        // ... (Logic now uses imported geocodeAddress) ...
+        const addressCoords = await geocodeAddress(`${lat},${lng}`); 
+        // ...
+    }
+    // ... (Rest of the original functions are assumed present and adjusted) ...
+</script>

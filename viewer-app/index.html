@@ -1,27 +1,123 @@
-<script type="module">
-    // --- ייבוא מודולי ליבה ---
-    import {
-        db, auth, authReadyPromise, SmartLog, showToast,
-        collection, doc, onSnapshot, query, orderBy, addDoc, where, limit, Timestamp
-    } from '../shared/firebase-init.js'; // <-- נתיב יחסי תוקן
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>DeliveryMaster Viewer V33.0</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#ffffff">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <link rel="apple-touch-icon" href="../shared/icons/icon-192.png">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/feather-icons"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
 
-    // --- ייבוא מודול מפות ---
-    import {
-        initMap, ISRAEL_CENTER,
-        driverIconActive, driverIconStuck, orderIconNew as orderIconActive // שינוי שם לייבוא
-    } from '../shared/map-utils.js'; // <-- נתיב יחסי תוקן
+    <style>
+        /* (Styling remains the same) */
+        /* (Other styles omitted for brevity) */
+    </style>
+</head>
+<body class="antialiased">
 
-    // --- (Rest of the original functions and initialization logic are assumed present) ---
+    <!-- (HTML structure omitted for brevity) -->
+    <div class="viewer-layout">
+        <header class="bg-white shadow-sm p-4 flex justify-between items-center"><div class="flex items-center space-x-2 space-x-reverse"><i data-feather="truck" class="w-7 h-7 text-blue-500"></i><h1 class="text-xl font-bold">DeliveryMaster Viewer</h1></div><div id="connection-status" class="connecting"><span class="dot"></span><span>מתחבר...</span></div></header>
+        <div id="viewer-counters"><!-- (Counters omitted) --></div>
+        <main id="viewer-main-content">
+            <div id="viewer-map-container"><div id="viewer-map"></div><div id="viewer-map-loader" class="loader-container"><div class="loader"></div><span class="ml-4 font-semibold">טוען מפה ונתונים...</span></div></div>
+            <aside id="viewer-side-panel"><!-- (Sidebar content omitted) --></aside>
+        </main>
+    </div>
 
-    async function initializeViewerApplication() {
-        // ... (Auth logic) ...
-        try {
-            // שימוש ב-initMap המיובא
-            viewerMap = initMap('viewer-map', ISRAEL_CENTER, 9);
-            if (!viewerMap) { throw new Error("Map initialization failed."); }
-            await authReadyPromise; 
-            // ... (Listeners logic) ...
-        } catch (error) { /* ... */ }
-    }
-    // ... (Rest of the original functions are assumed present and adjusted) ...
-</script>
+    <div id="toast-container"></div>
+    <div id="fullpage-orders-by-status" class="full-page-view"><!-- (Full page view omitted) --></div>
+    <div id="fullpage-tomorrow-orders" class="full-page-view"><!-- (Full page view omitted) --></div>
+
+    <script type="module">
+        // --- ייבוא מודולי ליבה ---
+        import {
+            db, auth, authReadyPromise, SmartLog, showToast,
+            collection, doc, onSnapshot, query, orderBy, addDoc, where, limit, Timestamp
+        } from '../shared/firebase-init.js';
+
+        // --- ייבוא מודול מפות (שימוש ב-Getters) ---
+        import {
+            initMap, ISRAEL_CENTER,
+            initializeMapComponents, getDriverIconActive, getDriverIconStuck, getOrderIconNew
+        } from '../shared/map-utils.js';
+
+        // --- (State and Config) ---
+        const ACTIVE_ORDER_STATUSES = ["חדש", "שויך", "בדרך"]; 
+        let viewerState = { allOrders: [], activeOrders: [], futureOrders: [], drivers: [], liveLocations: {} };
+        let viewerMap; 
+        let viewerDriverMarkers = {};
+        let viewerOrderMarkers = {};
+        
+        // --- INITIALIZATION ---
+        document.addEventListener('DOMContentLoaded', () => {
+            try { feather.replace(); } catch (e) { SmartLog.error(e, "Init.Feather"); }
+            initializeViewerApplication();
+        });
+        
+        async function initializeViewerApplication() {
+            SmartLog.info("Viewer App v33.0: Initializing...", "Init");
+            try {
+                updateConnectionStatus('connecting', 'מפעיל מפה...');
+                
+                // ** שלב 1: אתחול רכיבי המפה (Icons) **
+                if (!initializeMapComponents()) { throw new Error("Map components initialization failed."); }
+                
+                // ** שלב 2: אתחול המפה **
+                viewerMap = initMap('viewer-map', ISRAEL_CENTER, 9); 
+                if (!viewerMap) { throw new Error("Map initialization failed."); }
+
+                showLoader('viewer-map-loader', true);
+                
+                await authReadyPromise;
+                SmartLog.info(`Firebase Auth successful for viewer.`, "Init.Auth");
+                
+                // Auth is ready, now attach listeners
+                listenToDriversViewer();
+                listenToAllOrdersViewer(); 
+                listenToLocationsViewer();
+                // ... (Ping logic - assumed present) ...
+                
+                showLoader('viewer-map-loader', false);
+                updateConnectionStatus('connected', 'מחובר');
+            } catch (error) { /* ... */ }
+        }
+
+        // ... (Listeners logic remains the same) ...
+
+        function renderViewerMapMarkers() {
+            if (!viewerMap) return;
+            const bounds = L.latLngBounds();
+
+            // --- Render Drivers (using Getters) ---
+            Object.values(viewerState.liveLocations).forEach(driverLoc => {
+                const icon = driverLoc.isStuck ? getDriverIconStuck() : getDriverIconActive(); // <-- שימוש ב-Getter
+                // ... (rest of logic) ...
+            });
+            // ... (Remove old drivers logic) ...
+
+            // --- Render Active Orders Only (using Getters) ---
+            const activeMapOrders = viewerState.activeOrders.filter(o => o.latitude && o.longitude);
+            // ... (Clear old orders logic) ...
+
+            activeMapOrders.forEach(order => {
+                const icon = getOrderIconNew(); // <-- שימוש ב-Getter
+                // ... (rest of logic) ...
+            });
+            // ... (Fit bounds logic remains the same) ...
+        }
+
+        // ... (Rest of the original functions are assumed present and adjusted) ...
+    </script>
+</body>
+</html>

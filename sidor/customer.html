@@ -1,24 +1,118 @@
-<script type="module">
-    // --- ייבוא מודולי ליבה ---
-    import {
-        db, auth, authReadyPromise, SmartLog, 
-        collection, doc, onSnapshot, query, getDoc, Timestamp
-    } from '../shared/firebase-init.js'; // <-- נתיב יחסי תוקן
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מעקב משלוח</title>
+    <!-- (CSS, CDN links remain the same) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/feather-icons"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;700&display=swap" rel="stylesheet">
 
-    // --- ייבוא מודול מפות ---
-    import {
-        initMap, ISRAEL_CENTER,
-        orderIconNew as orderIcon, driverIconActive as driverIcon
-    } from '../shared/map-utils.js'; // <-- נתיב יחסי תוקן
+    <style>
+        /* (Styling remains the same) */
+        /* (Other styles omitted for brevity) */
+    </style>
+</head>
+<body class="bg-gray-100">
 
-    // --- (Rest of the original functions and initialization logic are assumed present) ---
-    function initializeMap(orderLatLng) {
-        try {
-            // שימוש ב-initMap המיובא
-            map = initMap('map', orderLatLng, 15);
-            if (!map) throw new Error("Map initialization failed.");
-            // ... (Rest of map/bounds logic) ...
-        } catch (error) { /* ... */ }
-    }
-    // ... (Rest of the original functions are assumed present and adjusted) ...
-</script>
+    <!-- (HTML structure omitted for brevity) -->
+    <div class="container mx-auto max-w-lg p-4">
+        <header class="text-center my-6 flex flex-col items-center"><!-- (Header omitted) --></header>
+        <main class="bg-white p-6 rounded-lg shadow-lg">
+            <div id="loader" class="text-center py-10"><!-- (Loader omitted) --></div>
+            <div id="error-message" class="hidden text-center py-10"><!-- (Error omitted) --></div>
+            <div id="order-content" class="hidden"><!-- (Order content omitted) --></div>
+        </main>
+        <footer class="text-center mt-6 text-gray-500 text-sm"><!-- (Footer omitted) --></footer>
+    </div>
+
+    <script type="module">
+        // --- ייבוא מודולי ליבה ---
+        import {
+            db, auth, authReadyPromise, SmartLog, 
+            collection, doc, onSnapshot, query, getDoc, Timestamp
+        } from '../shared/firebase-init.js';
+
+        // --- ייבוא מודול מפות (שימוש ב-Getters) ---
+        import {
+            initMap, ISRAEL_CENTER, initializeMapComponents,
+            getOrderIconNew as getOrderIcon, getDriverIconActive as getDriverIcon
+        } from '../shared/map-utils.js';
+
+        // --- Map & State (Adjusted) ---
+        let map;
+        let driverMarker;
+        let orderMarker;
+        // ... (rest of state) ...
+        
+        // --- UI Functions (omitted) ---
+
+        // --- Map Functions (Adjusted to use initMap and Getters) ---
+        function initializeMap(orderLatLng) {
+            try {
+                // ** שלב 1: אתחול רכיבי המפה (Icons) **
+                if (!initializeMapComponents()) { throw new Error("Map components initialization failed."); }
+                
+                if (map) map.remove(); 
+                map = initMap('map', orderLatLng, 15); // <-- שימוש ב-initMap המיובא
+                
+                const bounds = L.latLngBounds();
+                if (orderLatLng) {
+                    orderMarker = L.marker(orderLatLng, { icon: getOrderIcon() }) // <-- שימוש ב-Getter
+                        .addTo(map).bindPopup("כתובת האספקה שלך");
+                    bounds.extend(orderLatLng);
+                }
+                
+                if (bounds.isValid()) { map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 }); } 
+                else { map.setView(ISRAEL_CENTER, 9); } 
+            } catch (error) { SmartLog.error(error, { context: "Error initializing map" }); document.getElementById('map').innerHTML = "שגיאה בטעינת המפה."; }
+        }
+        
+        function updateMap(orderLatLng, driverLatLng) {
+            if (!map) return;
+            
+            const bounds = L.latLngBounds();
+            if (orderLatLng) {
+                if (orderMarker) {
+                    orderMarker.setLatLng(orderLatLng);
+                } else {
+                    orderMarker = L.marker(orderLatLng, { icon: getOrderIcon() }) // <-- שימוש ב-Getter
+                        .addTo(map).bindPopup("כתובת האספקה");
+                }
+                bounds.extend(orderLatLng);
+            }
+
+            if (driverLatLng) {
+                document.getElementById('map-container').style.display = 'block'; 
+                if (driverMarker) {
+                    driverMarker.setLatLng(driverLatLng);
+                } else {
+                    driverMarker = L.marker(driverLatLng, { icon: getDriverIcon() }) // <-- שימוש ב-Getter
+                        .addTo(map).bindPopup("מיקום הנהג");
+                }
+                bounds.extend(driverLatLng);
+            } else {
+                if (driverMarker) { map.removeLayer(driverMarker); driverMarker = null; }
+            }
+            
+            if (bounds.isValid()) { setTimeout(() => map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 }), 50); }
+        }
+        
+        // --- Main Logic (omitted) ---
+        function getOrderIdFromUrl() { /* ... */ }
+        async function startTracking() { /* ... */ }
+        function listenToDriverLocation(driverId, orderData) { /* ... */ }
+        function renderOrderData(order) { /* ... */ }
+
+        // --- Init ---
+        document.addEventListener('DOMContentLoaded', () => {
+            // Check for order ID and start tracking
+            startTracking();
+            feather.replace();
+        });
+    </script>
+</body>
+</html>
